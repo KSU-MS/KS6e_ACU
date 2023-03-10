@@ -7,6 +7,12 @@
 enum ACUSTATE {BOOTUP, RUNNING, FAULT};
 int acuState=0;
 
+//Neopixel shit
+#include <Adafruit_NeoPixel.h>
+int LEDPIN = 8;
+int NUMPIXELS = 4;
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, LEDPIN, NEO_GRB + NEO_KHZ800);
+
 #define runningFoReal
 #ifdef runningFoReal
 #define NUMBER_OF_LTCs 5 // TODO change to 6?
@@ -71,10 +77,21 @@ void setup() {
     Serial.println(batteryTemps[i]);
   }
   pinMode(9, OUTPUT); digitalWrite(9, HIGH); //Relay pin
-  // pinMode(LED_BUILTIN,OUTPUT);
-  for(int i=0;i<4;i++){
-    pinMode(i, OUTPUT); digitalWrite(i, LOW); //indicator LEDs TODO, this might not be the same on the new ACU
-  }
+
+  // TODO, we are now using neo pixels?
+  // // pinMode(LED_BUILTIN,OUTPUT);
+  // for(int i=0;i<4;i++){
+  //   pinMode(i, OUTPUT); digitalWrite(i, LOW); //indicator LEDs 
+  // }
+  
+
+  // Neopixel lightup for initial testing
+  pixels.begin(); // This initializes the NeoPixel library.
+  pixels.setBrightness(255);
+  pixels.setPixelColor(0, pixels.Color(255,255,255)); // white at 100% brightness
+  pixels.show(); // This sends the updated pixel color to the hardware
+
+
   // #ifdef runningFoReal
    for(int i=0;i<NUMBER_OF_LTCs;i++){
     byte ltcStatus=theThings[i].begin(ltcAddressList[i],5000);
@@ -146,6 +163,10 @@ void loop() {
     digitalWrite(9,HIGH);
     controlFanSpeed();
   }
+
+  chase(pixels.Color(255, 0, 0)); // Red
+  chase(pixels.Color(0, 255, 0)); // Green
+  chase(pixels.Color(0, 0, 255)); // Blue
 }
 void canSniff(const CAN_message_t &msg) {
   //if(msg.id==BMS_Response_ID){
@@ -402,3 +423,12 @@ void ACUStateMachine(){
       Can0.write(ctrlMsg);
     }
   }
+
+  static void chase(uint32_t c) {
+  for(uint16_t i=0; i<pixels.numPixels()+4; i++) {
+      pixels.setPixelColor(i  , c); // Draw new pixel
+      pixels.setPixelColor(i-4, 0); // Erase pixel a few steps back
+      pixels.show();
+      delay(25);
+  }
+}
