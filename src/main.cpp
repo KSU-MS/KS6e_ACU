@@ -4,23 +4,13 @@
 #include <LTC2499.h>
 #include <WireIMXRT.h>
 #include <FreqMeasureMulti.h>
-
-#include <Adafruit_NeoPixel.h>
-
 enum ACUSTATE {BOOTUP, RUNNING, FAULT};
 int acuState=0;
 
 #define runningFoReal
 #ifdef runningFoReal
-#define NUMBER_OF_LTCs 6 //Changed to 6 because of 6 modules
-#define NUMBER_OF_CELLS 72 //Changed to 72 because of 72 cells now
-
-#define NEOPIN=8;
-#define NEOLEDS=4;
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NEOLEDS, NEOPIN, NEO_GRB + NEO_KHZ800);
-
-
-
+#define NUMBER_OF_LTCs 5 // TODO change to 6?
+#define NUMBER_OF_CELLS 60 // TODO change to 72?
 uint8_t gettingTempState=0; //0=set 1=wait 2=get
 //Init ADCs
 Ltc2499 theThings[6];
@@ -39,6 +29,7 @@ FreqMeasureMulti imdPWM; float sum1=0;int count1=0;
 FreqMeasureMulti imdPWM2; float sum2=0;int count2=0;
 int currentChannel=0;
 int globalHighTherm=25, globalLowTherm=25;
+
 //Can IDs
 #define BMS_ID 0x7E3
 #define ThermistorToBMS_ID 0x9839F380 
@@ -67,10 +58,6 @@ void getImdPwm();
 void DebuggingPrintout();
 void controlFanSpeed();
 void setup() {
-
-  strip.begin();
-
-
   Wire.setClock(100000);
    Wire.begin();
   Serial.begin(115200); delay(400);
@@ -85,8 +72,8 @@ void setup() {
   }
   pinMode(9, OUTPUT); digitalWrite(9, HIGH); //Relay pin
   // pinMode(LED_BUILTIN,OUTPUT);
-  for(int i=0;i<4;i++){ // TODO change this to 5 instead of 4 since we have 6 modules now?
-    pinMode(i, OUTPUT); digitalWrite(i, LOW); //indicator LEDs
+  for(int i=0;i<4;i++){
+    pinMode(i, OUTPUT); digitalWrite(i, LOW); //indicator LEDs TODO, this might not be the same on the new ACU
   }
   // #ifdef runningFoReal
    for(int i=0;i<NUMBER_OF_LTCs;i++){
@@ -117,8 +104,8 @@ void setup() {
   // while(!Serial.available());{ }
   imdPWM.begin(8,FREQMEASUREMULTI_MARK_ONLY);
 }
-
 #ifdef runningFoReal
+
 void getAllTheTemps(int channelNo){
   for(int i=0;i<NUMBER_OF_LTCs;i++){
     theThings[i].changeChannel(CHAN_SINGLE_0P);
@@ -139,7 +126,6 @@ void getAllTheTemps(int channelNo){
   // Serial.println("=================");
 }
 #endif
-
 void loop() {
   getImdPwm();
   digitalWrite(LED_BUILTIN,LOW);
@@ -160,12 +146,7 @@ void loop() {
     digitalWrite(9,HIGH);
     controlFanSpeed();
   }
-  
-  chase(strip.Color(255, 0, 0)); // Red
-  chase(strip.Color(0, 255, 0)); // Green
-  chase(strip.Color(0, 0, 255)); // Blue
 }
-
 void canSniff(const CAN_message_t &msg) {
   //if(msg.id==BMS_Response_ID){
   // digitalWrite(LED_BUILTIN,HIGH);
@@ -181,7 +162,6 @@ void canSniff(const CAN_message_t &msg) {
   // } Serial.println();
   //}
 }
-
 //getting one of the max temps from BMS (high or low not sure lol)
 void getTempData()
 {
@@ -196,7 +176,6 @@ void getTempData()
     Can0.write(getTempMsg);
     Serial.println("Requesting Highest Temp Data...");
 }
-
 //Sending highest/lowest temperature to the BMS
 void sendTempData(){
   CAN_message_t sendTempMsg;
@@ -225,7 +204,7 @@ void sendTempData(){
     // #endif
   }
 
-  // TODO bodge
+  // TODO fix bodge
   if(highTherm>80){
     highTherm=25;
   }
@@ -250,7 +229,6 @@ int setChannels(int channelNo){
     return channelNo;
   }
 } 
-
 void setChannelsSwitchCase(int channelNo){
   switch(channelNo){
     case 0:{
@@ -330,7 +308,6 @@ void setChannelsSwitchCase(int channelNo){
       break;
   }
 } 
-
 void getTemps(int channelNo){
   CAN_message_t energus_voltages;
   energus_voltages.id = 0x6B3;
@@ -354,7 +331,6 @@ void getTemps(int channelNo){
   }
   Can0.write(energus_voltages);
 }
-
 void ACUStateMachine(){
   // Serial.println("State:");
   // Serial.println(acuState);
@@ -374,7 +350,7 @@ void ACUStateMachine(){
         }
       break;
     case 2:
-      Serial.println("reading channels");
+      Serial.println("Reading channels");
       getTemps(currentChannel);
       acuState=0;
       currentChannel++;
@@ -383,62 +359,46 @@ void ACUStateMachine(){
       }
       break;
     }
-}
-
-void DebuggingPrintout(){
-  for(int i=0;i<NUMBER_OF_CELLS;i++){
-    Serial.print("Cell Number: "); Serial.print(i+1); Serial.print(" Temp: "); Serial.print(batteryTemps[i]);
-    Serial.println();
   }
-}
-
-void getImdPwm(){
-  float imdasdf=imdPWM.read();
-  if (imdPWM.available()) {
-  sum1 = sum1 + imdPWM.read();
-  count1++;
-  }
-  if(IMDPwmPrintTimer.check()){
-      if (count1 > 0) {
-        float imdPWMfrequency=(imdPWM.countToFrequency(sum1 /count1)/2);
-      Serial.print("FREQUENCY: ");Serial.println(imdPWM.countToFrequency(sum1 /count1)/2);
-      float period=1/imdPWMfrequency; 
-      Serial.print("PW: ");Serial.println((imdPWM.countToNanoseconds(sum1/count1)/1000000.0)/(period*10));
-    } else {
-      Serial.print("(no pulses)");
+  void DebuggingPrintout(){
+    for(int i=0;i<NUMBER_OF_CELLS;i++){
+      Serial.print("Cell Number: "); Serial.print(i+1); Serial.print(" Temp: "); Serial.print(batteryTemps[i]);
+      Serial.println();
     }
-    
-    sum1=0;count1=0;
   }
-}
-
-void controlFanSpeed(){
-  if(fanSpeedMsgTimer.check()){
-  uint8_t fanSpeed=255;
-  if(globalHighTherm>=25){
-//       fanSpeed=map(globalHighTherm,25,30,128,255);
-      fanSpeed=255;
+  void getImdPwm(){
+    float imdasdf=imdPWM.read();
+    if (imdPWM.available()) {
+    sum1 = sum1 + imdPWM.read();
+    count1++;
+    }
+    if(IMDPwmPrintTimer.check()){
+        if (count1 > 0) {
+          float imdPWMfrequency=(imdPWM.countToFrequency(sum1 /count1)/2);
+        Serial.print("FREQUENCY: ");Serial.println(imdPWM.countToFrequency(sum1 /count1)/2);
+        float period=1/imdPWMfrequency; 
+        Serial.print("PW: ");Serial.println((imdPWM.countToNanoseconds(sum1/count1)/1000000.0)/(period*10));
+      } else {
+        Serial.print("(no pulses)");
+      }
+      
+      sum1=0;count1=0;
+    }
   }
-  Serial.print("Fan Speed: ");
-  Serial.println(fanSpeed);
-  CAN_message_t ctrlMsg;
-    ctrlMsg.len=8;
-    ctrlMsg.id=0xC7;
-    uint8_t fanSpeedMsg[]={fanSpeed,0,0,0,1,1,0,0};
-    memcpy(ctrlMsg.buf, fanSpeedMsg, sizeof(ctrlMsg.buf));
-    Can0.write(ctrlMsg);
+  void controlFanSpeed(){
+    if(fanSpeedMsgTimer.check()){
+    uint8_t fanSpeed=64;
+    if(globalHighTherm>=25){
+ //       fanSpeed=map(globalHighTherm,25,30,128,255);
+        fanSpeed=255;
+    }
+    Serial.print("Fan Speed: ");
+    Serial.println(fanSpeed);
+    CAN_message_t ctrlMsg;
+      ctrlMsg.len=8;
+      ctrlMsg.id=0xC7;
+      uint8_t fanSpeedMsg[]={fanSpeed,0,0,0,1,1,0,0};
+      memcpy(ctrlMsg.buf, fanSpeedMsg, sizeof(ctrlMsg.buf));
+      Can0.write(ctrlMsg);
+    }
   }
-}
-
-
-
-static void chase(uint32_t c) {
-  for(uint16_t i=0; i<strip.numPixels()+4; i++) {
-      strip.setPixelColor(i  , c); // Draw new pixel
-      strip.setPixelColor(i-4, 0); // Erase pixel a few steps back
-      strip.show();
-      delay(25);
-  
-  }
-}
-  
